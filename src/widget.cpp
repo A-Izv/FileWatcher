@@ -1,10 +1,13 @@
 #include "widget.h"
 #include "ui_widget.h"
+#include "workthread.h"
+#include <QThread>
 //------------------------------------------------------------------------------
 mainWDG::mainWDG(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::mainWDG),
-    settings( "theCompany", "FileWatcher" )
+    settings( "theCompany", "FileWatcher" ),
+    workThread(nullptr)
 {
     ui->setupUi(this);
 
@@ -21,31 +24,6 @@ mainWDG::mainWDG(QWidget *parent) :
         startWatching();
     } else {
         log( "Прочитанная из настроек директория не существует" );
-    }
- // выделяем память для буфера чтения
-    buf = new int[BSIZE];
- // инициализируем таблицу разворота байт
-    int preTable[16] = {
-        0x0,
-        0x8,
-        0x4,
-        0xC,
-        0x2,
-        0xA,
-        0x6,
-        0xE,
-        0x1,
-        0x9,
-        0x5,
-        0xD,
-        0x3,
-        0xB,
-        0x7,
-        0xF
-    };
-    for( int i = 0 ; i < 256 ; i++ ) {
-        table[i]  =  preTable[ (i>>0) & 0x0F ] << 4;
-        table[i] |=  preTable[ (i>>4) & 0x0F ] << 0;
     }
  // создаем меню и иконку
  // ОТМЕТИТЬ, ЧТО КОПИРУЕМЫЙ АДРЕС РЕСУРСА (":/../IMG/folder_explorer.ico")
@@ -77,6 +55,13 @@ mainWDG::mainWDG(QWidget *parent) :
                       SIGNAL(activated(QSystemTrayIcon::ActivationReason)),
                       this,
                       SLOT(trayClicks(QSystemTrayIcon::ActivationReason)) );
+
+ // запускаем поток обработки найденных файлов
+    workThread = new WorkThread;
+
+    QObject::connect( workThread, SIGNAL(outMessage(QString)),
+                      this,         SLOT(log(QString)) );
+    workThread->start();
 }
 //------------------------------------------------------------------------------
 mainWDG::~mainWDG()
@@ -84,20 +69,24 @@ mainWDG::~mainWDG()
     settings.setValue( "geometry", saveGeometry() );
     settings.setValue( "dirName", dirName );
 
- // удаляем выделенную память
-    delete[] buf;
+    // останавливаем поток, и лишь потом удаляем его
+    workThread->terminate();
+    workThread->wait();
+    delete workThread;
 
     delete ui;
 }
 //------------------------------------------------------------------------------
 void mainWDG::log(const QString &s, const QString &title ) {
-    // начинаем строку с текущего времени
+    QString out;
+    uint    threadId = uint(QThread::currentThreadId()); // идентификатор потока, в котором выполняется log
 
-    // начинаем строку с текущего времени
-    QString out = QTime::currentTime().toString();
+    // форматируем сообщение
+    out = QString( "%1 (thread id 0x%2) %3" )
+             .arg( QTime::currentTime().toString() )
+             .arg( threadId, 0, 16 )
+             .arg( s );
 
-    out += QString( 4, ' ' );           // добавляем пробелы
-    out += s;                           // добавляем сообщение
     ui->logPTE->appendPlainText( out ); // добавляем сообщение в лог
     qDebug() << out;                    // выводим в поток отладки
 
@@ -172,7 +161,6 @@ void mainWDG::on_dirChange( const QString &path )
 void mainWDG::trayClicks(QSystemTrayIcon::ActivationReason r)
 {
     switch( r ) {
-    case QSystemTrayIcon::DoubleClick:
     case QSystemTrayIcon::Trigger:
         if( isVisible() ) {
             hide();
@@ -194,38 +182,8 @@ void mainWDG::hideEvent(QHideEvent *)
 //------------------------------------------------------------------------------
 void mainWDG::process( const QString &name )
 {
-    QFile f( name );
-
-    if(  f.open(QIODevice::ReadWrite) ) {
-        int size, index, tmpI;
-        qint64 pos;
-
-        do {
-            pos   = f.pos();
-            size  = f.read( (char*)buf, sizeof(int)*BSIZE );
-            size /= sizeof(int);
-
-            if( size > 0 ) {
-                for( int i = 0 ; i < size ; i++ ) {
-                    index = (buf[i] >> 24) & 0xFF;
-                    tmpI  = table[index] <<  0;
-
-                    index = (buf[i] >> 16) & 0xFF;
-                    tmpI |= table[index] <<  8;
-
-                    index = (buf[i] >>  8) & 0xFF;
-                    tmpI |= table[index] << 16;
-
-                    index = (buf[i] >>  0) & 0xFF;
-                    tmpI |= table[index] << 24;
-
-                    buf[i] = tmpI;
-                }
-                f.seek( pos );
-                f.write( (char*)buf, sizeof(int)*size );
-            }
-        } while( size == BSIZE );
-    }
+    // имя файла передаем в другой поток на обработку
+    workThread->addTask( name );
 }
 //------------------------------------------------------------------------------
 

@@ -16,12 +16,12 @@
 namespace Ui {
 class mainWDG;
 }
+class WorkThread;
 //------------------------------------------------------------------------------
 class mainWDG : public QWidget
 {
     Q_OBJECT
 
-    static const int    BSIZE = 1024*1024;
 public:
     explicit            mainWDG(QWidget *parent = 0);
                        ~mainWDG();
@@ -32,6 +32,9 @@ private slots:
     void                on_dirChange( const QString& path );
 
     void                trayClicks( QSystemTrayIcon::ActivationReason r );
+
+    // теперь LOG - это слот
+    void                log( const QString &s, const QString &title = QString() );
 private:
     Ui::mainWDG         *ui;
 
@@ -41,15 +44,12 @@ private:
     QFileSystemWatcher  fsw;
     QStringList         fileList;
 
-    int                 *buf;
-    int                 table[256];
-
     QMenu               *trayMenu;
     QSystemTrayIcon     *trayIcon;
 
-    void                hideEvent( QHideEvent * );
+    WorkThread          *workThread;
 
-    void                log( const QString &s, const QString &title = QString() );
+    void                hideEvent( QHideEvent * );
 
     void                startWatching();
     void                stopWatching();
