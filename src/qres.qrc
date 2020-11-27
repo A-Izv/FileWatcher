@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>../IMG/folder_explorer.ico</file>
+    </qresource>
+</RCC>

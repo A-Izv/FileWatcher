@@ -1,0 +1,7 @@
+build*/
+
+*.user
+*.user.*
+
+*.rar
+*.docx
