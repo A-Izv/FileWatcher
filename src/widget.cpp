@@ -182,8 +182,17 @@ void mainWDG::hideEvent(QHideEvent *)
 //------------------------------------------------------------------------------
 void mainWDG::process( const QString &name )
 {
+    static const int F_CNT = 1;//10;
+    QList<float> freqs;
+
+    for( int i = 0 ; i < F_CNT ; ++i ) {
+        freqs.push_back( -0.5  +  1.*i/F_CNT );
+    }
+
     // имя файла передаем в другой поток на обработку
-    workThread->addTask( name );
+    workThread->addTask( name,              // имя обрабатываемого файла
+                         dirName + "/out",  // каталог для сохранения результата
+                         freqs  );          // список частот
 }
 //------------------------------------------------------------------------------
 

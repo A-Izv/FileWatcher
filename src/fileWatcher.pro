@@ -14,10 +14,14 @@ TEMPLATE = app
 
 SOURCES += main.cpp\
         widget.cpp \
-    workthread.cpp
+        workthread.cpp \
+    simpleippfir2file.cpp \
+    myfirtaps.cpp
 
 HEADERS  += widget.h \
-    workthread.h
+        workthread.h \
+    simpleippfir2file.h \
+    myfirtaps.h
 
 FORMS    += widget.ui
 
@@ -25,3 +29,5 @@ RESOURCES += \
     qres.qrc
 
 RC_FILE = fileWatcher.rc
+
+include( ../../Intel_LIBS/ipp.pri)
